@@ -1,0 +1,112 @@
+"""Supply Chain Capacity & Production Optimization Model
+Author: İlayda ÇAL
+Description: This script simulates and evaluates multiple production shift scenarios
+             to find the global minimum cost structure over a 24-month horizon,
+                          balancing internal capacity limitations against outsourcing markups.
+                          Note: Data points have been randomized/anonymized to respect confidentiality agreements.
+                          """
+
+import pandas as pd
+
+# Define generic timeline
+months = [
+    'Year1-Jan', 'Year1-Feb', 'Year1-Mar', 'Year1-Apr', 'Year1-May', 'Year1-Jun',
+    'Year1-Jul', 'Year1-Aug', 'Year1-Sep', 'Year1-Oct', 'Year1-Nov', 'Year1-Dec',
+    'Year2-Jan', 'Year2-Feb', 'Year2-Mar', 'Year2-Apr', 'Year2-May', 'Year2-Jun',
+    'Year2-Jul', 'Year2-Aug', 'Year2-Sep', 'Year2-Oct', 'Year2-Nov', 'Year2-Dec'
+]
+
+# Anonymized demand forecast (Modified from original source files)
+demand_forecast = [
+    2038570, 2270690, 2153180, 2603840, 2715630, 2855140, 2611420, 2411990, 2172050, 1948330, 1851210, 2124500,
+    2284900, 2394500, 2412350, 2985100, 3114500, 3295400, 2994800, 2711300, 2465900, 2098400, 1984500, 2695100
+]
+
+# Anonymized capacity constraints for 3-Shift structure
+capacity_3_shift = [
+    1976000, 1824000, 1976000, 1976000, 1976000, 1900000, 1976000, 1900000, 1900000, 1976000, 1900000, 1976000,
+    1976000, 1824000, 1976000, 1976000, 1976000, 1900000, 1976000, 1900000, 1900000, 1976000, 1900000, 1976000
+]
+
+# Anonymized capacity constraints for 4-Shift structure
+capacity_4_shift = [
+    2356000, 2128000, 2356000, 2280000, 2356000, 2280000, 2356000, 2356000, 2280000, 2356000, 2280000, 2356000,
+    2356000, 2128000, 2356000, 2280000, 2356000, 2280000, 2356000, 2356000, 2280000, 2356000, 2280000, 2356000
+]
+
+# Financial Parameters & Cost Drivers
+IN_HOUSE_COST_PER_UNIT = 0.85
+OUTSOURCED_COST_PER_UNIT = 4.35
+FIXED_LABOR_OVERHEAD_4_SHIFT = 1000000
+
+def run_capacity_simulation():
+    scenarios_data = []
+
+    # 25 Total Scenarios (Index 0-23: Switch month, Index 24: Never Switch Baseline)
+    for switch_index in range(25):
+        total_cumulative_cost = 0
+        total_outsourced_volume = 0
+
+        for i in range(24):
+            # Check if expanded 4-shift operational structure is active
+            is_4_shift_active = (i >= switch_index)
+            current_max_capacity = capacity_4_shift[i] if is_4_shift_active else capacity_3_shift[i]
+
+            # In-house manufacturing volume calculation
+            in_house_production = min(demand_forecast[i], current_max_capacity)
+
+            # Volumetric shortfall to be managed by external manufacturing partner (MP)
+            outsourced_units = max(0, demand_forecast[i] - in_house_production)
+            total_outsourced_volume += outsourced_units
+
+            # Cost Aggregations
+            variable_prod_cost = in_house_production * IN_HOUSE_COST_PER_UNIT
+            fixed_shift_overhead = FIXED_LABOR_OVERHEAD_4_SHIFT if is_4_shift_active else 0
+            external_markup_cost = outsourced_units * OUTSOURCED_COST_PER_UNIT
+
+            total_cumulative_cost += (variable_prod_cost + fixed_shift_overhead + external_markup_cost)
+
+        scenario_label = months[switch_index] if switch_index < 24 else "Never Switch"
+        scenarios_data.append({
+            'Strategy / Switch Month': scenario_label,
+            'Total Cost ($)': round(total_cumulative_cost, 2),
+            'Total Outsourced Volume (Units)': total_outsourced_volume
+        })
+
+    return pd.DataFrame(scenarios_data)
+
+if __name__ == "__main__":
+    # Execute optimization pipeline
+    results_df = run_capacity_simulation()
+
+    # Sort scenarios to locate global minimum cost strategy
+    optimized_results = results_df.sort_values(by='Total Cost ($)').reset_index(drop=True)
+
+    print("=" * 65)
+    print("        TOP 5 MOST COST-EFFECTIVE SCENARIOS GENERATED")
+    print("=" * 65)
+    print(optimized_results.head(5).to_string(index=False))
+    print("\n" + "=" * 65)
+    print("        BASELINE BENCHMARK STRATEGY (NO ACTION)")
+    print("=" * 65)
+    print(results_df[results_df['Strategy / Switch Month'] == 'Never Switch'].to_string(index=False))
+
+
+
+
+
+=================================================================
+        TOP 5 MOST COST-EFFECTIVE SCENARIOS GENERATED
+=================================================================
+Strategy / Switch Month  Total Cost ($)  Total Outsourced Volume (Units)
+              Year2-Jan      93457165.0                          8897960
+              Year2-Feb      93538315.0                          9206860
+              Year2-Mar      93602315.0                          9510860
+              Year2-Apr      93932315.0                          9890860
+              Year1-Dec      93937415.0                          8749460
+
+=================================================================
+        BASELINE BENCHMARK STRATEGY (NO ACTION)
+=================================================================
+Strategy / Switch Month  Total Cost ($)  Total Outsourced Volume (Units)
+           Never Switch      94966465.0                         12757760
